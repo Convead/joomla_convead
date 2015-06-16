@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<updates>
+				<update>
+				<name>convead</name>
+				<description>convead</description>
+				<element>convead</element>
+				<type>plugin</type>
+				<version>1.2</version>
+				<infourl title="Convead 1.2">http://convead.ru/</infourl>
+				<downloads>
+					<downloadurl type="full" format="zip">https://github.com/Convead/joomla_convead/archive/master.zip</downloadurl>
+				</downloads>
+				<tags>
+					<tag>stable</tag>
+				</tags>
+				<maintainer>Convead</maintainer>
+				<maintainerurl>http://convead.ru/</maintainerurl>
+				<section>Updates</section>
+				<targetplatform name="joomla" version="3.4" />
+				<client>0</client>
+				<folder>system</folder>
+			</update>
+					<update>
+				<name>convead</name>
+				<description>convead</description>
+				<element>convead</element>
+				<type>plugin</type>
+				<version>1.2</version>
+				<infourl title="Convead 1.2">http://convead.ru/</infourl>
+				<downloads>
+					<downloadurl type="full" format="zip">https://github.com/Convead/joomla_convead/archive/master.zip</downloadurl>
+				</downloads>
+				<tags>
+					<tag>stable</tag>
+				</tags>
+				<maintainer>Convead</maintainer>
+				<maintainerurl>http://convead.ru/</maintainerurl>
+				<section>Updates</section>
+				<targetplatform name="joomla" version="2.5" />
+				<client>0</client>
+				<folder>system</folder>
+			</update>
+</updates>
