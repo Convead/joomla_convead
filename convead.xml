@@ -2,7 +2,7 @@
 <extension version="2.5" type="plugin" group="system" method="upgrade">
 	<name>PLG_CONVEAD</name>
 	<author>Joomline</author>
-	<creationDate>09.06.2015</creationDate>
+	<creationDate>16.06.2015</creationDate>
 	<copyright>(C) 2015 Arkadiy Sedelnikov, Joomline. All rights reserved.</copyright>
 	<license>GNU General Public License version 2 or later</license>
 	<authorEmail>a.sedelnikov@gmail.com</authorEmail>
