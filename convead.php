@@ -101,7 +101,7 @@ class plgSystemConvead extends JPlugin
                 (function(w,d,c){w[c]=w[c]||function(){(w[c].q=w[c].q||[]).push(arguments)};var ts = (+new Date()/86400000|0)*86400;var s = d.createElement('script');s.type = 'text/javascript';s.async = true;s.src = '//tracker.convead.io/widgets/'+ts+'/widget-".$this->app_key.".js';var x = d.getElementsByTagName('script')[0];x.parentNode.insertBefore(s, x);})(window,document,'convead');
             ";
 
-            JFactory::getApplication()->getDocument()->addScriptDeclaration($script);
+            JFactory::getDocument()->addScriptDeclaration($script);
         }
     }
 
@@ -717,7 +717,7 @@ class plgSystemConvead extends JPlugin
         if(!empty($this->app_key))
         {
             $uri = JUri::getInstance()->toString();
-            JFactory::getApplication()->getDocument()->addScriptDeclaration("
+            JFactory::getDocument()->addScriptDeclaration("
             jQuery(function($) {
 		    	convead('event', 'view_product', {
                   product_id: $id,
@@ -748,7 +748,7 @@ class plgSystemConvead extends JPlugin
                 }
             }
             $products = implode(', ', $products);
-            JFactory::getApplication()->getDocument()->addScriptDeclaration("
+            JFactory::getDocument()->addScriptDeclaration("
             jQuery(function($) {
 		    	convead('event', 'update_cart', {
                   items: [
@@ -779,7 +779,7 @@ class plgSystemConvead extends JPlugin
                 }
             }
             $products = implode(', ', $products);
-            JFactory::getApplication()->getDocument()->addScriptDeclaration("
+            JFactory::getDocument()->addScriptDeclaration("
             jQuery(function($) {
 		    	convead('event', 'purchase', {
                   order_id: '$orderId',
