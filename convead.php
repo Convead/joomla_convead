@@ -24,7 +24,8 @@ class plgSystemConvead extends JPlugin
         $userPhone,
         $userDateOfBirth,
         $userGender,
-        $currencyValues
+        $currencyValues,
+        $isJoomlaThree
     ;
 
 	public function __construct(& $subject, $config)
@@ -42,7 +43,8 @@ class plgSystemConvead extends JPlugin
         $this->userPhone = '';
         $this->userDateOfBirth = '';
         $this->userGender = '';
-	}
+        $this->isJoomlaThree = version_compare(JVERSION, '3.0', '>=');
+    }
 
     /** Main script
      * @throws Exception
@@ -73,7 +75,14 @@ class plgSystemConvead extends JPlugin
                 if(!empty($this->userGender))           $visitor_info['gender']          = $this->userGender;
 
                 JPluginHelper::importPlugin('convead');
-                $dispatcher	= JEventDispatcher::getInstance();
+
+                if($this->isJoomlaThree){
+                    $dispatcher	= JEventDispatcher::getInstance();
+                }
+                else{
+                    $dispatcher	= JDispatcher::getInstance();
+                }
+
                 $dispatcher->trigger('onConveadSettings', array(&$visitor_info));
 
                 $conveadSettings = "
@@ -648,12 +657,6 @@ class plgSystemConvead extends JPlugin
             $adv_user = JSFactory::getUserShopGuest();
         }
 
-        if(empty($this->userId) && !empty($adv_user->email))
-        {
-            $id = str_replace(array('@','.',','), '-', $adv_user->email);
-            $this->userId = $id;
-        }
-
         if($adv_user->title == 1){
             $this->userGender = 'male';
         }
@@ -827,7 +830,14 @@ class plgSystemConvead extends JPlugin
         }
 
         JPluginHelper::importPlugin('convead');
-        $dispatcher	= JEventDispatcher::getInstance();
+
+        if($this->isJoomlaThree){
+            $dispatcher	= JEventDispatcher::getInstance();
+        }
+        else{
+            $dispatcher	= JDispatcher::getInstance();
+        }
+
         $dispatcher->trigger('onConveadSettings', array(&$visitor_info));
 
         $guestUID = isset($_COOKIE['convead_guest_uid']) ? $_COOKIE['convead_guest_uid'] : '';
