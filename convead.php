@@ -208,7 +208,7 @@ class plgSystemConvead extends JPlugin
      */
     public function onAfterCartUpdate( &$cartClass, &$cart, &$product_id, &$quantity, &$add, &$type,&$resetCartWhenUpdate,&$force,&$updated )
     {
-        if($cart->cart_type != 'cart')
+        if(JFactory::getApplication()->input->getCmd('option', '') != 'com_hikashop'  || $cart->cart_type != 'cart')
         {
             return;
         }
@@ -252,7 +252,9 @@ class plgSystemConvead extends JPlugin
         $input = JFactory::getApplication()->input;
         $task = $input->getCmd('task', '');
         $ctrl = $input->getCmd('ctrl', '');
-        if(!($ctrl == 'checkout' && $task == 'step' && !$this->isAdmin))
+        $option = $input->getCmd('option', '');
+
+        if($option != 'com_hikashop' || !($ctrl == 'checkout' && $task == 'step' && !$this->isAdmin))
         {
             return;
         }
