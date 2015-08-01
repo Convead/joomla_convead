@@ -652,7 +652,7 @@ class plgSystemConvead extends JPlugin
      */
     private function jshoppingUpdateUserInfo()
     {
-        $adv_user = JSFactory::getUser();
+        $adv_user = JSFactory::getUserShop();
 
         if($adv_user->user_id <= 0)
         {
