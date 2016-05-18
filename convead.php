@@ -2,10 +2,10 @@
 /**
  * Сonvead for Joomla
  *
- * @version 	1.1
- * @author		Arkadiy Sedelnikov, Joomline
- * @copyright	© 2015. All rights reserved.
- * @license 	GNU/GPL v.2 or later.
+ * @version     1.6
+ * @author      Arkadiy Sedelnikov, Joomline
+ * @copyright   © 2015. All rights reserved.
+ * @license     GNU/GPL v.2 or later.
  */
 defined('_JEXEC') or die;
 
@@ -28,9 +28,9 @@ class plgSystemConvead extends JPlugin
         $isJoomlaThree
     ;
 
-	public function __construct(& $subject, $config)
-	{
-		parent::__construct($subject, $config);
+    public function __construct(& $subject, $config)
+    {
+        parent::__construct($subject, $config);
         $this->input = new JInput();
         $this->isAdmin = JFactory::getApplication()->isAdmin();
         $this->app_key = $this->params->get('app_key', '');
@@ -77,10 +77,10 @@ class plgSystemConvead extends JPlugin
                 JPluginHelper::importPlugin('convead');
 
                 if($this->isJoomlaThree){
-                    $dispatcher	= JEventDispatcher::getInstance();
+                    $dispatcher = JEventDispatcher::getInstance();
                 }
                 else{
-                    $dispatcher	= JDispatcher::getInstance();
+                    $dispatcher = JDispatcher::getInstance();
                 }
 
                 $dispatcher->trigger('onConveadSettings', array(&$visitor_info));
@@ -332,7 +332,7 @@ class plgSystemConvead extends JPlugin
      */
     public function plgVmOnAddToCart($cart)
     {
-        $this->virtuemartSubmitCart($cart);
+        $this->virtuemartSubmitCart();
     }
 
     /** Virtuemart on delete from cart
@@ -341,7 +341,7 @@ class plgSystemConvead extends JPlugin
      */
     public function plgVmOnRemoveFromCart($cart,$prod_id)
     {
-        $this->virtuemartSubmitCart($cart);
+        $this->virtuemartSubmitCart();
     }
 
     /** Virtuemart on refresh cart
@@ -350,14 +350,13 @@ class plgSystemConvead extends JPlugin
      */
     public function plgVmgetPaymentCurrency($virtuemart_paymentmethod_id, &$paymentCurrency)
     {
-        $cart = VirtueMartCart::getCart();
-        $this->virtuemartSubmitCart($cart);
+        $this->virtuemartSubmitCart();
     }
 
     /** Virtuemart submit cart
      * @param $cart
      */
-    private function virtuemartSubmitCart($cartClass)
+    private function virtuemartSubmitCart()
     {
         if(!defined('CONVEAD_VM_SUBMIT_CART'))
         {
@@ -370,7 +369,7 @@ class plgSystemConvead extends JPlugin
 
         require_once JPATH_ROOT.'/administrator/components/com_virtuemart/helpers/currencydisplay.php';
         $CurrencyDisplay = CurrencyDisplay::getInstance();
-        $cart = $cartClass->getCart();
+        $cart = VirtueMartCart::getCart();
         $cart = clone($cart);
         $productsModel = VmModel::getModel('product');
         $customFieldsModel = VmModel::getModel('customfields');
@@ -724,13 +723,13 @@ class plgSystemConvead extends JPlugin
             $uri = JUri::getInstance()->toString();
             JFactory::getDocument()->addScriptDeclaration("
             jQuery(function($) {
-		    	convead('event', 'view_product', {
+                convead('event', 'view_product', {
                   product_id: $id,
                   category_id: $category_id,
                   product_name: '$name',
                   product_url: '$uri'
                 });
-		    });
+            });
             ");
         }
     }
@@ -755,12 +754,12 @@ class plgSystemConvead extends JPlugin
             $products = implode(', ', $products);
             JFactory::getDocument()->addScriptDeclaration("
             jQuery(function($) {
-		    	convead('event', 'update_cart', {
+                convead('event', 'update_cart', {
                   items: [
                     $products
                   ]
                 });
-		    });
+            });
             ");
         }
     }
@@ -786,14 +785,14 @@ class plgSystemConvead extends JPlugin
             $products = implode(', ', $products);
             JFactory::getDocument()->addScriptDeclaration("
             jQuery(function($) {
-		    	convead('event', 'purchase', {
+                convead('event', 'purchase', {
                   order_id: '$orderId',
                   revenue: $total,
                   items: [
                     $products
                   ]
                 });
-		    });
+            });
             ");
         }
     }
@@ -834,10 +833,10 @@ class plgSystemConvead extends JPlugin
         JPluginHelper::importPlugin('convead');
 
         if($this->isJoomlaThree){
-            $dispatcher	= JEventDispatcher::getInstance();
+            $dispatcher = JEventDispatcher::getInstance();
         }
         else{
-            $dispatcher	= JDispatcher::getInstance();
+            $dispatcher = JDispatcher::getInstance();
         }
 
         $dispatcher->trigger('onConveadSettings', array(&$visitor_info));
