@@ -558,7 +558,8 @@ class plgSystemConvead extends JPlugin
         $currencyId = $this->JSgetCurrId($rub_id);
         $orderCurrencyId = $this->JSgetCurrId($order->currency_code_iso);
 
-        $order_total = $order->order_subtotal - $order->order_discount;
+        //$order_total = $order->order_subtotal - $order->order_discount;
+        $order_total = $order->order_total;
 
         if(is_array($result) && count($result))
         {
