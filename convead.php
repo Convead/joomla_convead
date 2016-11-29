@@ -457,7 +457,25 @@ class plgSystemConvead extends JPlugin
         if(!empty($orderDetails->email))
             $this->userEmail = $orderDetails->email;
 
-        $this->submitOrder($orderDetails->order_number, $order_total, $items);
+        $this->submitOrder($orderDetails->order_number, $order_total, $items, $this->virtuemartSwitchState( $orderDetails->order_status ));
+    }
+    
+    /** Vireuemart switch state
+     * @param $state
+     */
+    public function virtuemartSwitchState($state) {
+        switch ($state) {
+          case 'P':
+            $state = 'new';
+            break;
+          /*case 'P':
+            $state = 'paid';
+            break;
+          case 'F':
+            $state = 'shipped';
+            break;*/
+        }
+        return $state;
     }
 
     /** Joomshopping product
@@ -804,7 +822,7 @@ class plgSystemConvead extends JPlugin
      * @param $order_total
      * @param $items
      */
-    private function submitOrder($order_number, $order_total, $items)
+    private function submitOrder($order_number, $order_total, $items, $state)
     {
         require_once 'lib/ConveadTracker.php';
 
@@ -846,7 +864,7 @@ class plgSystemConvead extends JPlugin
 
         $ConveadTracker = new ConveadTracker( $this->app_key, $url, $guestUID, $this->userId, $visitor_info );
 
-        $return = $ConveadTracker->eventOrder($order_number, $order_total, $items);
+        $return = $ConveadTracker->eventOrder($order_number, $order_total, $items, $state);
     }
 
     /** Submit cart to convead
