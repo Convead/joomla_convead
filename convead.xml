@@ -11,6 +11,7 @@
 	<description>PLG_CONVEAD_XML_DESCRIPTION</description>
 
 	<files>
+        <folder>elements</folder>
         <folder>lib</folder>
         <filename plugin="convead">convead.php</filename>
         <filename>index.html</filename>
@@ -24,7 +25,7 @@
     </languages>
 
 	<config>
-		<fields name="params">
+		<fields name="params" addfieldpath="/plugins/system/convead/elements">
 			<fieldset name="basic">
                 <field
                         name="app_key"
@@ -38,6 +39,11 @@
                         default="RUB"
                         label="PLG_CONVEAD_RUB_ID"
                         description="PLG_CONVEAD_RUB_ID_DESC"/>
+				<field
+						name="statuses"
+						type="statuses"
+						label="PLG_CONVEAD_STATUSES"
+						description="PLG_CONVEAD_STATUSES_DESC"/>
 			</fieldset>
 
 		</fields>

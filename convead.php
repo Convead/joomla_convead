@@ -25,7 +25,8 @@ class plgSystemConvead extends JPlugin
         $userDateOfBirth,
         $userGender,
         $currencyValues,
-        $isJoomlaThree
+        $isJoomlaThree,
+        $rub_id
     ;
 
     public function __construct(& $subject, $config)
@@ -242,6 +243,41 @@ class plgSystemConvead extends JPlugin
         $this->submitCart($items);
     }
 
+    public function onAfterCartSave($element)
+    {
+        if(JFactory::getApplication()->input->getCmd('option', '') != 'com_hikashop'  || $element->cart_type != 'cart')
+        {
+            return;
+        }
+        $items = array();
+        $rub_id = $this->rub_id ? $this->rub_id : 'RUB';
+        $currencyId = $this->HIKAgetCurrId($rub_id);
+        $currencyClass = hikashop_get('class.currency');
+        $cartClass = hikashop_get('class.cart');
+        $fullCart = $cartClass->loadFullCart();
+
+        foreach ($fullCart->products as $v)
+        {
+            if($v->cart_product_quantity == 0){
+                continue;
+            }
+//            $price = (float)$v->prices[0]->unit_price->price_orig_value_with_tax;
+//            $productCurrencyId = (int)$v->prices[0]->unit_price->price_orig_currency_id;
+            $price = (float)$v->prices[0]->unit_price->price_value_with_tax;
+            $productCurrencyId = (int)$v->prices[0]->unit_price->price_currency_id;
+            $price = $currencyClass->convertUniquePrice($price, $productCurrencyId, $currencyId);
+//            $id = $v->product_parent_id == 0 ? $v->product_id : $v->product_parent_id;
+            $id = $v->product_id;
+            $items[] = array(
+                'id' => (int)$id,
+                'count' => (float)$v->cart_product_quantity,
+                'price' => (float)$price
+            );
+        }
+
+        $this->submitCart($items);
+    }
+
     /** Hikashop order
      * @param $order
      * @param $send_email
@@ -283,7 +319,7 @@ class plgSystemConvead extends JPlugin
             }
         }
 
-//        print_r($items);
+        $status = $this->getOrderStatus('hikashop', $order->order_status);
 
         $this->updateUserInfo();
 
@@ -305,7 +341,62 @@ class plgSystemConvead extends JPlugin
         $email = JFactory::getUser()->get('email','');
         if(!empty($email))
             $this->userEmail = $email;
-        $this->submitOrder($order->order_number, $order_total, $items);
+        $this->submitOrder($order->order_number, $order_total, $items, $status);
+    }
+
+    /** Hikashop update order status
+     * @param $order
+     * @param $send_email
+     *
+     *
+     * @since version
+     */
+    public function onAfterOrderUpdate(&$order, &$send_email){
+        $app = JFactory::getApplication();
+        $data = $app->input->get('data', array(), 'array');
+
+        if(!isset($data['order']) || empty($data['order']['order_status'])){
+            return;
+        }
+
+        if($order->order_status == $order->old->order_status){
+            return;
+        }
+
+        $status = $this->getOrderStatus('hikashop', $order->order_status);
+
+        $orderClass = hikashop_get('class.order');
+        $order = $orderClass->get($order->order_id);
+
+        $items = array();
+        $rub_id = $this->rub_id ? $this->rub_id : 'RUB';
+        $currencyId = $this->HIKAgetCurrId($rub_id);
+        $currencyClass = hikashop_get('class.currency');
+
+        $order_total = $currencyClass->convertUniquePrice($order->order_full_price - $order->order_shipping_price - $order->order_payment_price, $order->order_currency_id, $currencyId);
+        $db = JFactory::getDbo();
+        $query = $db->getQuery(true);
+        $query->select('*')->from('#__hikashop_order_product')->where('order_id = '.(int)$order->order_id);
+        $result = $db->setQuery($query)->loadObjectList();
+        if(is_array($result) && count($result))
+        {
+            foreach ($result as $v)
+            {
+                $price = $v->order_product_price+(float)$v->order_product_tax;
+                $price = $currencyClass->convertUniquePrice($price, $order->order_currency_id, $currencyId);
+
+                $product = new stdClass();
+                $product->product_id = (int)$v->order_product_id;
+                $product->qnt = (float)$v->order_product_quantity;
+                $product->price = $price;
+                $items[] = $product;
+            }
+        }
+
+        $this->userId = $order->order_user_id;
+        $this->updateUserInfo();
+
+        $this->changeOrderStatus($order->order_number, $order_total, $items, $order->order_user_id, $status);
     }
 
     /** Virtuemart product
@@ -350,7 +441,10 @@ class plgSystemConvead extends JPlugin
      */
     public function plgVmgetPaymentCurrency($virtuemart_paymentmethod_id, &$paymentCurrency)
     {
-        $this->virtuemartSubmitCart();
+        $input = JFactory::getApplication()->input;
+        if($input->getCmd('option') == 'com_virtuemart' && $input->getCmd('task') == 'updatecart'){
+            $this->virtuemartSubmitCart();
+        }
     }
 
     /** Virtuemart submit cart
@@ -419,6 +513,7 @@ class plgSystemConvead extends JPlugin
         $items = array();
         $rub_id = $this->rub_id ? $this->rub_id : 'RUB';
         $CurrencyDisplay = CurrencyDisplay::getInstance();
+        $order_status = 'new';
 
         if(is_array($order["items"]) && count($order["items"]))
         {
@@ -430,12 +525,15 @@ class plgSystemConvead extends JPlugin
                 $product->qnt = (float)$v->product_quantity;
                 $product->price = $price;
                 $items[] = $product;
+                if(!empty($v->order_status)){
+                    $order_status = $v->order_status;
+                }
             }
         }
 
         $orderDetails = $order["details"]["BT"];
 
-        $order_total = (float)$orderDetails->order_salesPrice + (float)$orderDetails->coupon_discount;
+        $order_total = (float)$CurrencyDisplay->convertCurrencyTo($rub_id,$orderDetails->order_salesPrice + (float)$orderDetails->coupon_discount,false);
 
         $this->updateUserInfo();
 
@@ -457,7 +555,53 @@ class plgSystemConvead extends JPlugin
         if(!empty($orderDetails->email))
             $this->userEmail = $orderDetails->email;
 
-        $this->submitOrder($orderDetails->order_number, $order_total, $items);
+        $status = $this->getOrderStatus('virtuemart', $order_status);
+
+        $this->submitOrder($orderDetails->order_number, $order_total, $items, $status);
+    }
+
+    /** Virtuemart change order status
+     * @param $data
+     * @param $old_order_status
+     *
+     *
+     * @since version
+     */
+    public function plgVmCouponUpdateOrderStatus($data, $old_order_status)
+    {
+        if($data->order_status == $old_order_status){
+            return;
+        }
+        $rub_id = $this->rub_id ? $this->rub_id : 'RUB';
+        $CurrencyDisplay = CurrencyDisplay::getInstance();
+        $status = $this->getOrderStatus('virtuemart', $data->order_status);
+        $order_total = (float)$data->order_salesPrice + (float)$data->coupon_discount;
+        $order_total = (float)$CurrencyDisplay->convertCurrencyTo($rub_id,$order_total,false);
+
+
+        $items = array();
+
+        $db = JFactory::getDbo();
+        $query = $db->getQuery(true);
+        $query->select('*')->from('#__virtuemart_order_items')->where('virtuemart_order_id = '.(int)$data->virtuemart_order_id);
+        $result = $db->setQuery($query)->loadObjectList();
+        if(is_array($result) && count($result))
+        {
+            foreach ($result as $v)
+            {
+                $price = (float)$CurrencyDisplay->convertCurrencyTo($rub_id,$v->product_final_price,false);
+                $product = new stdClass();
+                $product->product_id = (int)$v->virtuemart_product_id;
+                $product->qnt = (float)$v->product_quantity;
+                $product->price = $price;
+                $items[] = $product;
+            }
+        }
+
+        $this->userId = $data->virtuemart_user_id;
+        $this->updateUserInfo();
+
+        $this->changeOrderStatus($data->order_number, $order_total, $items, $data->virtuemart_user_id, $status);
     }
 
     /** Joomshopping product
@@ -525,11 +669,12 @@ class plgSystemConvead extends JPlugin
             {
                 foreach ($cart->products as $v)
                 {
-                    $price = $this->JSconvertPrice($v['price'], $frontCurrencyId, $currencyId);
+                    $price = (float)$this->JSconvertPrice($v['price'], $frontCurrencyId, $currencyId);
+                    $price = $price == 0 ? (float)$v['price'] : $price;
                     $items[] = array(
                         'id' => (int)$v['product_id'],
                         'count' => (float)$v['quantity'],
-                        'price' => (float)$price
+                        'price' => $price
                     );
                 }
             }
@@ -544,35 +689,9 @@ class plgSystemConvead extends JPlugin
      */
     public function onAfterCreateOrderFull(&$order)
     {
-       // $this->updateUserInfo();
-
-        $items = array();
-        $db = JFactory::getDbo();
-        $query = $db->getQuery(true);
-        $query->select('*')
-            ->from('`#__jshopping_order_item`')
-            ->where('`order_id` = '.$db->quote($order->order_id));
-        $result = $db->setQuery($query)->loadObjectList();
-
-        $rub_id = $this->rub_id ? $this->rub_id : 'RUB';
-        $currencyId = $this->JSgetCurrId($rub_id);
-        $orderCurrencyId = $this->JSgetCurrId($order->currency_code_iso);
-
-        //$order_total = $order->order_subtotal - $order->order_discount;
         $order_total = $order->order_total;
 
-        if(is_array($result) && count($result))
-        {
-            foreach ($result as $v)
-            {
-                $price = $this->JSconvertPrice($v->product_item_price, $orderCurrencyId, $currencyId);
-                $product = new stdClass();
-                $product->product_id = (int)$v->product_id;
-                $product->qnt = (float)$v->product_quantity;
-                $product->price = (float)$price;
-                $items[] = $product;
-            }
-        }
+        $items = $this->JSgetOrderItems($order->order_id, $order->currency_code_iso);
 
         if($order->title == 1){
             $this->userGender = 'male';
@@ -590,7 +709,134 @@ class plgSystemConvead extends JPlugin
         if(!empty($order->email))
             $this->userEmail = $order->email;
 
-        $this->submitOrder($order->order_number, $order_total, $items);
+        $status = $this->getOrderStatus('jshopping', $order->order_status);
+
+        $this->submitOrder($order->order_id, $order_total, $items, $status);
+    }
+
+    /**Joomshopping change order status admin
+     * @param $order_id
+     * @param $status
+     * @param $status_id
+     * @param $notify
+     * @param $comments
+     * @param $include_comment
+     * @param $view_order
+     * @param $prev_order_status
+     */
+    public function onAfterChangeOrderStatusAdmin(&$order_id, &$status, &$status_id, &$notify, &$comments,
+                                                  &$include_comment, &$view_order, &$prev_order_status)
+    {
+        $this->JSchangeOrderStatus($order_id, $status, $prev_order_status);
+    }
+
+    /**Joomshopping change order status
+     * @param $order_id
+     * @param $status
+     * @param $sendmessage
+     * @param $prev_order_status
+     *
+     *
+     * @since version
+     */
+    public function onAfterChangeOrderStatus(&$order_id, &$status, &$sendmessage, &$prev_order_status){
+        $this->JSchangeOrderStatus($order_id, $status, $prev_order_status);
+    }
+
+    /**Joomshopping new admin order
+     * @param $order
+     * @param $file_generete_pdf_order
+     *
+     *
+     * @since version
+     */
+    public function onAfterSaveOrder(&$order, &$file_generete_pdf_order)
+    {
+        if($order->order_date != $order->order_m_date || !JFactory::getApplication()->isAdmin()){
+            return;
+        }
+
+        $status = $this->getOrderStatus('jshopping', $order->order_status);
+        $items = $this->JSgetOrderItems($order->order_id, $order->currency_code_iso);
+        $order_total = $order->order_total;
+
+        $rub_id = $this->rub_id ? $this->rub_id : 'RUB';
+        $currencyId = $this->JSgetCurrId($rub_id);
+        $orderCurrencyId = $this->JSgetCurrId($order->currency_code_iso);
+
+        $order_total = $this->JSconvertPrice($order_total, $orderCurrencyId, $currencyId);
+
+        $this->userId = $order->user_id;
+        $this->updateUserInfo();
+
+        $this->submitOrder($order->order_id, $order_total, $items, $status);
+    }
+
+    /**
+     * @param $order_id
+     * @param $status
+     * @param $prev_order_status
+     *
+     *
+     * @since version
+     */
+    private function JSchangeOrderStatus($order_id, $status, $prev_order_status){
+        if($prev_order_status == $status){
+            return;
+        }
+
+        $order = JSFactory::getTable('order', 'jshop');
+        $order->load($order_id);
+
+        $status = $this->getOrderStatus('jshopping', $status);
+        $items = $this->JSgetOrderItems($order->order_id, $order->currency_code_iso);
+
+        $rub_id = $this->rub_id ? $this->rub_id : 'RUB';
+        $currencyId = $this->JSgetCurrId($rub_id);
+        $orderCurrencyId = $this->JSgetCurrId($order->currency_code_iso);
+        $order_total = $this->JSconvertPrice($order->order_total, $orderCurrencyId, $currencyId);
+
+        $this->userId = $order->user_id;
+        $this->updateUserInfo();
+
+        $this->changeOrderStatus($order_id, $order_total, $items, $order->user_id, $status);
+    }
+
+    /** JoomShopping order load products
+     * @param $order_id
+     * @param $currency_code_iso
+     *
+     * @return array
+     *
+     * @since version
+     */
+    private function JSgetOrderItems($order_id, $currency_code_iso){
+        $items = array();
+        $db = JFactory::getDbo();
+        $query = $db->getQuery(true);
+        $query->select('*')
+            ->from('`#__jshopping_order_item`')
+            ->where('`order_id` = '.$db->quote($order_id));
+        $result = $db->setQuery($query)->loadObjectList();
+
+        if(is_array($result) && count($result))
+        {
+
+            $rub_id = $this->rub_id ? $this->rub_id : 'RUB';
+            $currencyId = $this->JSgetCurrId($rub_id);
+            $orderCurrencyId = $this->JSgetCurrId($currency_code_iso);
+
+            foreach ($result as $v)
+            {
+                $price = $this->JSconvertPrice($v->product_item_price, $orderCurrencyId, $currencyId);
+                $product = new stdClass();
+                $product->product_id = (int)$v->product_id;
+                $product->qnt = (float)$v->product_quantity;
+                $product->price = (float)$price;
+                $items[] = $product;
+            }
+        }
+        return $items;
     }
 
     /**
@@ -619,7 +865,14 @@ class plgSystemConvead extends JPlugin
      */
     private function hikashopUpdateUserInfo()
     {
-        $userId = hikashop_loadUser();
+        $app = JFactory::getApplication();
+        if(!$app->isAdmin()){
+            $userId = hikashop_loadUser();
+        }
+        else{
+            $userId = $this->userId;
+        }
+
 
         if($userId == 0)
         {
@@ -652,6 +905,9 @@ class plgSystemConvead extends JPlugin
      */
     private function jshoppingUpdateUserInfo()
     {
+        if(JFactory::getApplication()->isAdmin()){
+            JSFactory::$load_user_id = $this->userId;
+        }
         $adv_user = JSFactory::getUserShop();
 
         if($adv_user->user_id <= 0)
@@ -683,7 +939,13 @@ class plgSystemConvead extends JPlugin
      */
     private function virtuemartUpdateUserInfo()
     {
-        $userId = JFactory::getUser()->id;
+        if(JFactory::getApplication()->isAdmin()){
+            $userId = $this->userId;
+        }
+        else{
+            $userId = JFactory::getUser()->id;
+        }
+
         if($userId == 0)
             return;
 
@@ -721,6 +983,8 @@ class plgSystemConvead extends JPlugin
     {
         if(!empty($this->app_key))
         {
+            $category_id = (int)$category_id;
+            $id = (int)$id;
             $uri = JUri::getInstance()->toString();
             JFactory::getDocument()->addScriptDeclaration("
             jQuery(function($) {
@@ -804,7 +1068,7 @@ class plgSystemConvead extends JPlugin
      * @param $order_total
      * @param $items
      */
-    private function submitOrder($order_number, $order_total, $items)
+    private function submitOrder($order_number, $order_total, $items, $status = false)
     {
         require_once 'lib/ConveadTracker.php';
 
@@ -846,7 +1110,58 @@ class plgSystemConvead extends JPlugin
 
         $ConveadTracker = new ConveadTracker( $this->app_key, $url, $guestUID, $this->userId, $visitor_info );
 
-        $return = $ConveadTracker->eventOrder($order_number, $order_total, $items);
+        $return = $ConveadTracker->eventOrder($order_number, $order_total, $items, $status);
+    }
+
+    /** Submit order to convead
+     * @param $order_number
+     * @param $order_total
+     * @param $items
+     */
+    private function changeOrderStatus($order_number, $order_total, $items, $userId, $status = false)
+    {
+        require_once 'lib/ConveadTracker.php';
+
+        $uri = JUri::getInstance();
+        $url = $uri->toString(array('host'));
+
+        $visitor_info = array();
+        if(!empty($this->userFirstName)){
+            $visitor_info['first_name'] = $this->userFirstName;
+        }
+        if(!empty($this->userLastName)){
+            $visitor_info['last_name'] = $this->userLastName;
+        }
+        if(!empty($this->userEmail)){
+            $visitor_info['email'] = $this->userEmail;
+        }
+        if(!empty($this->userPhone)){
+            $visitor_info['phone'] = $this->userPhone;
+        }
+        if(!empty($this->userDateOfBirth)){
+            $visitor_info['date_of_birth'] = $this->userDateOfBirth;
+        }
+        if(!empty($this->userGender)){
+            $visitor_info['gender'] = $this->userGender;
+        }
+
+        JPluginHelper::importPlugin('convead');
+
+        if($this->isJoomlaThree){
+            $dispatcher = JEventDispatcher::getInstance();
+        }
+        else{
+            $dispatcher = JDispatcher::getInstance();
+        }
+
+        $dispatcher->trigger('onConveadSettings', array(&$visitor_info));
+
+        $guestUID = '';
+
+        $ConveadTracker = new ConveadTracker( $this->app_key, $url, $guestUID, $userId, $visitor_info );
+
+
+        $return = $ConveadTracker->webHookOrderUpdate($order_number, $status, $order_total, $items);
     }
 
     /** Submit cart to convead
@@ -979,5 +1294,46 @@ class plgSystemConvead extends JPlugin
             ->from('`#__hikashop_currency`')
             ->where('`currency_code` = '.$db->quote($currencyCode));
         return (int)$db->setQuery($query)->loadResult();
+    }
+
+    private function getOrderStatus($shop, $orderStatus){
+        $status = $orderStatus;
+        $statuses = $this->getStatuses();
+        $aStatus = $statuses[$shop];
+        if(in_array($orderStatus, $aStatus))
+        {
+            while ($statusName = current($aStatus)) {
+                if ($statusName == $orderStatus) {
+                    $status =  key($aStatus);
+                    break;
+                }
+                next($aStatus);
+            }
+        }
+        return $status;
+    }
+
+    private function getStatuses()
+    {
+        static $statuses;
+
+        if(!is_array($statuses) || !count($statuses)){
+            $statuses = array();
+            $paramStatuses = $this->params->get('statuses');
+            $paramStatuses = (array)$paramStatuses;
+            if(count($paramStatuses)){
+                foreach ($paramStatuses as $k => $s){
+                    $statuses[$k] = array(
+                        'new' => !empty($s->new) ? $s->new : '',
+                        'paid' => !empty($s->paid) ? $s->paid : '',
+                        'shipped' => !empty($s->shipped) ? $s->shipped : '',
+                        'cancelled' => !empty($s->cancelled) ? $s->cancelled : '',
+                    );
+                }
+            }
+
+        }
+
+        return $statuses;
     }
 }
