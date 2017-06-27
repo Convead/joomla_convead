@@ -1205,6 +1205,8 @@ class plgSystemConvead extends JPlugin
 
         $guestUID = isset($_COOKIE['convead_guest_uid']) ? $_COOKIE['convead_guest_uid'] : '';
 
+        if (empty($guestUID) and empty($this->userId)) return false;
+
         $ConveadTracker = new ConveadTracker( $this->app_key, $url, $guestUID, $this->userId, $visitor_info );
 
         $products = array();
